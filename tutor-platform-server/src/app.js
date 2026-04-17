@@ -5,6 +5,8 @@ const { query } = require("./db/query");
 const authenticate_routes = require("./modules/auth/auth.routes");
 const path = require("path");
 const bookingsRoutes = require("./modules/bookings/bookings.routes");
+const tutorRoutes = require("./modules/tutors/tutors.routes");
+const jobPostRoutes = require("./modules/job-posts/jobPosts.routes");
 
 const app = express();
 
@@ -21,6 +23,8 @@ app.get("/health", async (req, res, next) => {
 });
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/family", bookingsRoutes);
+app.use("/tutor", tutorRoutes);
+app.use("/jobPost", jobPostRoutes);
 
 app.use(errorHandler);
 app.use("/auth", authenticate_routes);
