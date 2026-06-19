@@ -23,6 +23,11 @@ const env = {
   jwt: {
     secret: required("JWT_SECRET"),
   },
+  EMAIL_HOST: required("EMAIL_HOST"),
+  EMAIL_PORT: required("EMAIL_PORT"),
+  EMAIL_USER: required("EMAIL_USER"),
+  EMAIL_PASS: required("EMAIL_PASS"),
+  EMAIL_FROM: required("EMAIL_FROM"),
 };
 
 module.exports = env;

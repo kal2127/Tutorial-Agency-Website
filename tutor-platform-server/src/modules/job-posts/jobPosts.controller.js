@@ -4,6 +4,7 @@ const {
   createJobPostSchema,
   applyToJobSchema,
 } = require("./jobPosts.validators");
+const { sendEmail } = require("../../services/email.service");
 
 async function createJobPost(req, res, next) {
   try {
@@ -30,6 +31,39 @@ async function createJobPost(req, res, next) {
       ],
     );
 
+    // get family email + job info
+const familyRows = await query(
+  `SELECT u.email, u.full_name, jp.title
+   FROM tutor_job_posts jp
+   INNER JOIN users u ON u.id = jp.family_id
+   WHERE jp.id = ?`,
+  [jobPostId]
+);
+
+const family = familyRows[0];
+
+// get tutor info
+const tutorRowsInfo = await query(
+  `SELECT full_name FROM users WHERE id = ?`,
+  [tutorId]
+);
+
+const tutorName = tutorRowsInfo[0].full_name;
+
+// send email
+await sendEmail({
+  to: family.email,
+  subject: "New Tutor Application",
+  html: `
+    <h2>New Tutor Application</h2>
+    <p>Hello ${family.full_name},</p>
+    <p>A tutor has applied to your job:</p>
+    <p><strong>${family.title}</strong></p>
+    <p><strong>Tutor:</strong> ${tutorName}</p>
+    <p><strong>Message:</strong> ${data.message || "No message provided"}</p>
+    <p>Please login to your dashboard to review the application.</p>
+  `,
+});
     res.status(201).json({
       success: true,
       jobPostId: result.insertId,
@@ -281,7 +315,37 @@ async function selectTutorApplication(req, res, next) {
       throw new HttpError(404, "Application not found");
     }
 
-    const selectedTutorId = appRows[0].tutor_id;
+    const selectedTutorId = appRows[0].tutor_id; // get job details to create booking
+    const jobDetailsRows = await query(
+      `SELECT *
+   FROM tutor_job_posts
+   WHERE id = ?`,
+      [jobId],
+    );
+
+    const job = jobDetailsRows[0];
+
+    // create booking automatically
+    const bookingResult = await query(
+      `INSERT INTO bookings
+  (family_id, tutor_id, student_name, grade, curriculum, days_per_week, hours_per_day, session_type, location_note, amount, status, job_post_id)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_VERIFICATION', ?)`,
+      [
+        familyId,
+        selectedTutorId,
+        job.student_name,
+        job.grade,
+        job.curriculum,
+        job.days_per_week,
+        job.hours_per_day,
+        job.session_type,
+        job.location_note,
+        job.budget ?? 0,
+        jobId,
+      ],
+    );
+
+    const bookingId = bookingResult.insertId;
 
     // mark selected app accepted
     await query(
@@ -310,9 +374,11 @@ async function selectTutorApplication(req, res, next) {
 
     res.json({
       success: true,
-      message: "Tutor selected successfully",
+      message: "Tutor selected and booking created",
       selected_tutor_id: selectedTutorId,
       job_status: "FULFILLED",
+      booking_id: bookingId,
+      booking_status: "PENDING_VERIFICATION",
     });
   } catch (e) {
     next(e);
